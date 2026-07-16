@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RAG Based Insurance Chatbot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ============ ARC Prize theme (arcprize.org/arc-agi) ============ */
+:root{
+  --white:#eee;
+  --offwhite:#e3e1df;
+  --black:#000;
+  --offblack:#0e0c0c;
+  --magenta:#e53aa3;
+  --red:#f93c31;
+  --blue:#1e93ff;
+  --blue-light:#4fe3f0;
+  --yellow:#ffd84d;
+  --orange:#ff8a1f;
+  --green:#4eea3a;
+  --gray:#555;
+  --gray-light:#999;
+  --border-color:#222;
+  --border-hover:rgba(255,255,255,.6);
+  --max-width:1200px;
+  --font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --font-mono:"Space Mono",monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--offblack)}
+body{
+  background:var(--offblack);
+  color:var(--offwhite);
+  font-family:var(--font-sans);
+  font-size:15px;line-height:24px;
+  min-height:100vh;
+}
+.wrap{max-width:var(--max-width);margin:0 auto;padding:0 24px}
+
+/* top nav bar, thin bottom border like arcprize */
+nav{border-bottom:1px solid var(--border-color)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:56px}
+.navlinks{display:flex;gap:24px}
+.mono{font-family:var(--font-mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--gray-light)}
+nav a{color:var(--gray-light);text-decoration:none}
+nav a:hover{color:var(--white)}
+
+/* the little ARC-style pixel grid logo */
+.grid-logo{display:grid;grid-template-columns:repeat(4,10px);grid-template-rows:repeat(2,10px);gap:2px}
+.grid-logo i{display:block;width:10px;height:10px}
+
+/* hero */
+header{padding:72px 0 40px;border-bottom:1px solid var(--border-color)}
+h1{font-size:32px;font-weight:400;line-height:1.1;color:var(--offwhite)}
+.presenter{margin-top:12px}
+.presenter .name{color:var(--white)}
+
+/* stat strip like arcprize scoreboard */
+.stats{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--border-color)}
+.stat{padding:20px 32px 20px 0;margin-right:32px}
+.stat .v{font-family:var(--font-mono);font-size:24px;color:var(--white)}
+.stat .l{margin-top:2px}
+
+/* controls */
+.controls{padding:40px 0 8px}
+.label{margin-bottom:8px;display:block}
+.planrow{display:flex;gap:0;margin-bottom:16px}
+.planbtn{
+  font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+  background:transparent;color:var(--gray-light);
+  border:1px solid var(--border-color);padding:10px 22px;cursor:pointer;margin-right:-1px;
+}
+.planbtn:hover{border-color:var(--border-hover);color:var(--white);position:relative;z-index:1}
+.planbtn.active{color:var(--offblack);position:relative;z-index:1}
+.planbtn.active[data-plan=""]{background:var(--white);border-color:var(--white)}
+.planbtn.active[data-plan="Gold"]{background:var(--yellow);border-color:var(--yellow)}
+.planbtn.active[data-plan="Silver"]{background:var(--blue-light);border-color:var(--blue-light)}
+.askrow{display:flex;gap:12px}
+#q{
+  flex:1;background:transparent;border:1px solid var(--border-color);
+  color:var(--offwhite);font-family:var(--font-mono);font-size:14px;
+  padding:14px 16px;outline:none;
+}
+#q:focus{border-color:var(--border-hover)}
+#q::placeholder{color:var(--gray)}
+.btn{
+  font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+  padding:14px 26px;cursor:pointer;border:1px solid var(--border-color);
+  background:transparent;color:var(--white);white-space:nowrap;
+}
+.btn:hover{border-color:var(--border-hover)}
+.btn.primary{background:var(--white);color:var(--offblack);border-color:var(--white)}
+.btn.primary:hover{background:var(--offwhite)}
+.btn:disabled{opacity:.4;cursor:default}
+
+/* example question chips */
+.examples{padding:16px 0 32px;display:flex;flex-wrap:wrap;gap:8px}
+.chip{
+  font-family:var(--font-mono);font-size:11px;color:var(--gray-light);
+  border:1px solid var(--border-color);padding:6px 12px;cursor:pointer;background:transparent;
+}
+.chip:hover{color:var(--white);border-color:var(--border-hover)}
+
+/* status line */
+#status{padding:8px 0 24px;color:var(--gray-light);font-family:var(--font-mono);font-size:12px;min-height:44px}
+.blink{animation:blink 1s steps(2,start) infinite}
+@keyframes blink{to{visibility:hidden}}
+.err{color:var(--red)}
+
+/* answer panel */
+#answerbox{display:none;border:1px solid var(--border-color);padding:24px;margin-bottom:32px}
+#answerbox .tag{margin-bottom:12px}
+#answertext{white-space:pre-wrap;color:var(--offwhite)}
+#answermodel{margin-top:16px;color:var(--gray)}
+
+/* retrieved chunk cards */
+#results{display:none;padding-bottom:48px}
+.rhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px}
+.card{border:1px solid var(--border-color);margin-bottom:12px}
+.cardtop{
+  display:flex;align-items:center;gap:16px;padding:12px 16px;cursor:pointer;
+}
+.cardtop:hover{background:rgba(255,255,255,.04)}
+.rank{font-family:var(--font-mono);font-size:14px;color:var(--white);width:24px}
+.badge{
+  font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.05em;
+  padding:2px 8px;color:var(--offblack)
+}
+.badge.Gold{background:var(--yellow)}
+.badge.Silver{background:var(--blue-light)}
+.meta{flex:1;font-family:var(--font-mono);font-size:11px;color:var(--gray-light);text-transform:uppercase;letter-spacing:.03em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dist{width:180px;display:flex;align-items:center;gap:8px}
+.distbar{flex:1;height:6px;background:var(--border-color);position:relative}
+.distbar i{position:absolute;left:0;top:0;bottom:0;background:var(--green)}
+.distnum{font-family:var(--font-mono);font-size:11px;color:var(--gray-light);width:46px;text-align:right}
+.cardbody{display:none;border-top:1px solid var(--border-color);padding:16px;white-space:pre-wrap;color:var(--gray-light);font-size:14px;line-height:22px;max-height:340px;overflow:auto}
+.card.open .cardbody{display:block}
+
+/* glossary */
+section.gloss{border-top:1px solid var(--border-color);padding:48px 0 64px}
+h2{font-size:24px;font-weight:400;margin-bottom:8px}
+.gsub{color:var(--gray-light);margin-bottom:24px}
+details{border:1px solid var(--border-color);margin-bottom:8px}
+summary{
+  cursor:pointer;padding:12px 16px;font-family:var(--font-mono);font-size:12px;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--white);list-style:none;
+}
+summary::before{content:"+ ";color:var(--gray-light)}
+details[open] summary::before{content:"− "}
+summary:hover{background:rgba(255,255,255,.04)}
+details p{padding:0 16px 16px;color:var(--gray-light)}
+details b{color:var(--offwhite);font-weight:500}
+
+footer{border-top:1px solid var(--border-color);padding:24px 0}
+footer .wrap{display:flex;justify-content:space-between}
+
+@media(max-width:720px){
+  .stats{flex-direction:column}
+  .stat{padding:12px 0}
+  .askrow{flex-direction:column}
+  .dist{display:none}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <div class="grid-logo" aria-hidden="true">
+      <i style="background:var(--magenta)"></i><i style="background:var(--blue)"></i><i style="background:var(--yellow)"></i><i style="background:var(--green)"></i>
+      <i style="background:var(--orange)"></i><i style="background:var(--red)"></i><i style="background:var(--blue-light)"></i><i style="background:var(--gray)"></i>
+    </div>
+    <div class="navlinks mono">
+      <a href="#ask">Ask</a>
+      <a href="#glossary">Glossary</a>
+      <a href="#" onclick="return false">Pipeline: parse &rarr; chunk &rarr; embed &rarr; retrieve &rarr; generate</a>
+    </div>
+  </div>
+</nav>
+
+<header>
+  <div class="wrap">
+    <h1>RAG Based Insurance Chatbot</h1>
+    <div class="presenter mono">Presented by <span class="name">Karthikeya (IITGN)</span></div>
+  </div>
+</header>
+
+<div class="stats">
+  <div class="wrap" style="display:flex;flex-wrap:wrap">
+    <div class="stat"><div class="v">{{ chunks }}</div><div class="l mono">chunks indexed</div></div>
+    <div class="stat"><div class="v">{{ docs }}</div><div class="l mono">policy documents</div></div>
+    <div class="stat"><div class="v">{{ retrieval }}</div><div class="l mono">retrieval hit@5</div></div>
+    <div class="stat"><div class="v">{{ answers }}</div><div class="l mono">answer accuracy</div></div>
+    <div class="stat"><div class="v">{{ faithfulness }}</div><div class="l mono">faithfulness</div></div>
+  </div>
+</div>
+
+<main class="wrap" id="ask">
+  <div class="controls">
+    <span class="label mono">1 &mdash; choose a policy plan</span>
+    <div class="planrow">
+      <button class="planbtn active" data-plan="">Both plans</button>
+      <button class="planbtn" data-plan="Gold">Gold</button>
+      <button class="planbtn" data-plan="Silver">Silver</button>
+    </div>
+    <span class="label mono">2 &mdash; ask about the Bajaj Allianz Health Guard policy</span>
+    <div class="askrow">
+      <input id="q" type="text" placeholder="e.g. How much will the policy pay for road ambulance?" autocomplete="off">
+      <button class="btn" id="searchbtn" title="Retrieval only — shows which document chunks match. Free and instant.">Search chunks</button>
+      <button class="btn primary" id="askbtn" title="Retrieval + LLM writes an answer from the retrieved chunks.">Ask AI &rarr;</button>
+    </div>
+  </div>
+
+  <div class="examples">
+    <button class="chip">How much will the policy pay for road ambulance?</button>
+    <button class="chip">Is there any limit on room rent?</button>
+    <button class="chip">Is bariatric surgery covered?</button>
+    <button class="chip">What is the waiting period for pre-existing diseases?</button>
+    <button class="chip">What is the email of the insurance ombudsman in Hyderabad?</button>
+  </div>
+
+  <div id="status"></div>
+
+  <div id="answerbox">
+    <div class="tag mono" style="color:var(--green)">Answer &mdash; written only from the retrieved chunks below</div>
+    <div id="answertext"></div>
+    <div id="answermodel" class="mono"></div>
+  </div>
+
+  <div id="results">
+    <div class="rhead">
+      <span class="mono" style="color:var(--white)">Retrieved chunks</span>
+      <span class="mono">lower distance = closer meaning &middot; click a row to read the chunk</span>
+    </div>
+    <div id="cards"></div>
+  </div>
+</main>
+
+<section class="gloss" id="glossary">
+  <div class="wrap">
+    <h2>What do these terms mean?</h2>
+    <p class="gsub">Every piece of jargon on this page, in plain words.</p>
+
+    <details><summary>Chunk</summary>
+      <p>The two policy PDFs were cut into <b>{{ chunks }} small pieces</b>, each about a paragraph long, following the document's own section headings. A chunk is one such piece. We search chunks instead of whole documents because a 30-page PDF answers every question at once &mdash; a paragraph answers one question well.</p></details>
+
+    <details><summary>Embedding / vector</summary>
+      <p>A way to turn text into <b>a list of 384 numbers</b> that captures its meaning &mdash; like coordinates on a giant map of meanings. Texts about similar things (ambulances, hospital transport) land near each other on the map even if they share no words. This project uses the open-source <b>bge-small-en-v1.5</b> model, running locally, to make these numbers.</p></details>
+
+    <details><summary>Vector database (ChromaDB)</summary>
+      <p>A database that stores all {{ chunks }} embeddings and, given a new one, finds the <b>nearest neighbours fast</b>. This project uses <b>ChromaDB</b>, which runs inside the app like a simple file &mdash; no server needed. At larger scale you would switch to pgvector, Qdrant or Pinecone; the idea stays identical.</p></details>
+
+    <details><summary>Retrieval / top-k</summary>
+      <p>The step where your question is embedded and the database returns the <b>k closest chunks</b> (here k = 5). The "Search chunks" button does exactly this and nothing more &mdash; it's how you can check what the AI will read <b>before</b> it answers.</p></details>
+
+    <details><summary>Reranker (two-stage retrieval)</summary>
+      <p>The fast search reads your question and each chunk <b>separately</b> &mdash; that's what makes it fast, but it misses subtle connections. So we fetch the top 20 candidates fast, then a second model (a <b>cross-encoder</b>) reads your question <b>together with</b> each candidate and re-sorts them by how well they actually answer it. The best 5 survive. Slower per chunk, but it only ever sees 20.</p></details>
+
+    <details><summary>Fact index ("search small, read big")</summary>
+      <p>A fact buried mid-paragraph inside a long multi-topic chunk is nearly invisible to search &mdash; the chunk's overall meaning drowns it out. So every prose <b>sentence</b> is also indexed separately, pointing back to its parent chunk. When a single sentence matches your question sharply, its parent chunk gets a vote in the final ranking &mdash; and the AI still reads the <b>full parent chunk</b>, so no context is lost. Only the top 5 facts vote: further down, fact matches degrade into lookalikes that would flood the ranking.</p></details>
+
+    <details><summary>Semantic cache</summary>
+      <p>People ask the same thing in different words. Each answered question is stored with its embedding; when a new question lands close enough <b>in meaning</b> (distance &le; 0.18) <b>and</b> retrieves the same best-matching chunk, the stored answer is reused &mdash; <b>no LLM call at all</b> (about 2s instead of 10&ndash;15s). Both conditions were set by measurement: "expenses <i>before</i> hospitalisation" vs "<i>after</i> discharge" sound nearly identical (distance 0.106!) but have different answers &mdash; the evidence check is what keeps them apart. The cache is per-plan, so a Gold answer can never be served for a Silver question.</p></details>
+
+    <details><summary>Faithfulness (hallucination check)</summary>
+      <p>After the answer is written, a <b>second, independent LLM call audits it</b>: every factual claim in the answer is checked against the retrieved extracts, and anything the model added from its own training knowledge gets flagged. The faithfulness score on the scoreboard = the share of answers with <b>zero unsupported claims</b>. Saying "the document doesn't contain this" counts as faithful &mdash; that's exactly the honest behavior we want.</p></details>
+
+    <details><summary>Distance</summary>
+      <p>How far a chunk sits from your question on the meaning map. <b>0 = same meaning</b>, bigger = less related. Results around 0.15&ndash;0.30 are usually on-topic; past 0.4 the match is getting weak. The green bars show closeness (longer bar = closer).</p></details>
+
+    <details><summary>Plan filter</summary>
+      <p>Every chunk is labelled Gold or Silver. Choosing a plan makes the database <b>filter first, search second</b> &mdash; so a question about Silver can never accidentally pull a Gold rule. The two plans differ in sneaky ways (Gold has no room-rent limit, Silver caps it at 1% of sum insured per day), so this matters.</p></details>
+
+    <details><summary>Generation / LLM</summary>
+      <p>The final step: the retrieved chunks are pasted into a prompt with strict rules &mdash; <b>"answer only from these extracts, cite sections, say so if the answer isn't here"</b> &mdash; and a large language model writes the reply. The model is a reading assistant, not a know-it-all: if retrieval fetched the wrong chunks, it cannot secretly fix that.</p></details>
+
+    <details><summary>RAG (Retrieval-Augmented Generation)</summary>
+      <p>The whole recipe above: <b>retrieve</b> the right pieces of a trusted document, then let an LLM <b>generate</b> an answer from them alone. It turns "I think insurance usually covers..." into "Section 4, page 2 says Rs 20,000 per policy year."</p></details>
+
+    <details><summary>hit@5 / answer accuracy</summary>
+      <p>Scores from a 17-question exam this pipeline takes (data/eval) &mdash; the scoreboard at the top shows the <b>latest run automatically</b>. <b>hit@5</b> = the share of questions where the chunk containing the correct evidence appeared in the top 5 results. <b>Answer accuracy</b> = the share of final answers containing the right facts (or correctly refusing when the document has no answer). Rerun <b>python src/evaluate.py --full</b> and refresh this page to update the numbers.</p></details>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span class="mono">RAG &mdash; no orchestration frameworks</span>
+    <span class="mono">Docling &middot; bge-small-en-v1.5 &middot; ChromaDB &middot; ms-marco reranker &middot; OpenRouter</span>
+  </div>
+</footer>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let plan = "";
+
+document.querySelectorAll(".planbtn").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".planbtn").forEach(x => x.classList.remove("active"));
+  b.classList.add("active");
+  plan = b.dataset.plan;
+});
+
+document.querySelectorAll(".chip").forEach(c => c.onclick = () => {
+  $("#q").value = c.textContent;
+  $("#q").focus();
+});
+
+function setStatus(msg, cls) {
+  $("#status").innerHTML = msg ? `<span class="${cls || ""}">${msg}</span>` : "";
+}
+
+function renderChunks(hits) {
+  const cards = $("#cards");
+  cards.innerHTML = "";
+  hits.forEach((h, i) => {
+    const closeness = Math.max(0, Math.min(1, 1 - h.distance));
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <div class="cardtop">
+        <span class="rank">${i + 1}</span>
+        <span class="badge ${h.plan}">${h.plan}</span>
+        <span class="meta">${h.section} &middot; page ${h.page} &middot; ${h.chunk_id}</span>
+        <span class="dist">
+          <span class="distbar"><i style="width:${(closeness * 100).toFixed(0)}%"></i></span>
+          <span class="distnum">${h.distance.toFixed(3)}</span>
+        </span>
+      </div>
+      <div class="cardbody"></div>`;
+    card.querySelector(".cardbody").textContent = h.text;
+    card.querySelector(".cardtop").onclick = () => card.classList.toggle("open");
+    cards.appendChild(card);
+  });
+  $("#results").style.display = "block";
+}
+
+async function post(url, body) {
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error || ("HTTP " + r.status));
+  return data;
+}
+
+async function doSearch() {
+  const q = $("#q").value.trim();
+  if (!q) { setStatus("Type a question first.", "err"); return; }
+  $("#answerbox").style.display = "none";
+  setStatus('Embedding your question and searching 252 chunks... <span class="blink">_</span>');
+  lock(true);
+  try {
+    const data = await post("/api/search", { question: q, plan });
+    renderChunks(data.hits);
+    setStatus(`${data.hits.length} chunks retrieved (${plan || "both plans"}). Retrieval only &mdash; no LLM was called.`);
+  } catch (e) {
+    setStatus("Error: " + e.message, "err");
+  } finally { lock(false); }
+}
+
+async function doAsk() {
+  const q = $("#q").value.trim();
+  if (!q) { setStatus("Type a question first.", "err"); return; }
+  $("#answerbox").style.display = "none";
+  setStatus('Step 1/2 &mdash; retrieving the most relevant chunks... <span class="blink">_</span>');
+  lock(true);
+  try {
+    const data = await post("/api/search", { question: q, plan });
+    renderChunks(data.hits);
+    setStatus('Step 2/2 &mdash; LLM is writing an answer from those chunks (free models can be slow)... <span class="blink">_</span>');
+    const res = await post("/api/ask", { question: q, plan });
+    $("#answertext").textContent = res.answer;
+    $("#answermodel").textContent = res.cached
+      ? `semantic cache — no LLM call (originally asked as: "${res.cached_from}")`
+      : "model: " + res.model;
+    $("#answerbox").style.display = "block";
+    setStatus("");
+    $("#answerbox").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  } catch (e) {
+    setStatus("Error: " + e.message, "err");
+  } finally { lock(false); }
+}
+
+function lock(on) {
+  $("#searchbtn").disabled = on;
+  $("#askbtn").disabled = on;
+}
+
+$("#searchbtn").onclick = doSearch;
+$("#askbtn").onclick = doAsk;
+$("#q").addEventListener("keydown", (e) => { if (e.key === "Enter") doSearch(); });
+</script>
+</body>
+</html>

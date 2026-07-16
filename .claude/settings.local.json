@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($j = Get-Content data/processed/bajaj_gold_chunks.json -Raw -Encoding utf8 | ConvertFrom-Json; $j.Count; $j | ForEach-Object { $_.char_count } | Measure-Object -Average -Minimum -Maximum | Format-List; $j[0..5] | ForEach-Object { \"$\\($_.chunk_id\\) | p$\\($_.page\\) | $\\($_.char_count\\) chars | $\\($_.section\\)\" })",
+      "PowerShell(Get-Content .env | ForEach-Object { \\($_ -split '='\\)[0] }; Get-Content .gitignore)",
+      "PowerShell($j = Get-Content data/processed/bajaj_gold_chunks.json -Raw -Encoding utf8 | ConvertFrom-Json; $j | Where-Object { $_.char_count -gt 4000 } | ForEach-Object { \"$\\($_.chunk_id\\) | $\\($_.char_count\\) chars | $\\($_.section\\)\" }; \"\"; \"Under 200 chars:\"; $j | Where-Object { $_.char_count -lt 200 } | ForEach-Object { \"$\\($_.chunk_id\\) | $\\($_.char_count\\) | $\\($_.section\\)\" })",
+      "Bash(PYTHONPATH=src python debug_facts.py)",
+      "Bash(PYTHONPATH=src python debug_factscore.py)",
+      "PowerShell($g = Get-Content data/processed/bajaj_gold_chunks.json -Raw -Encoding utf8 | ConvertFrom-Json; \"=== dental ===\"; $d = @\\($g | Where-Object { $_.section -match 'Dental Treatment' }\\)[0]; $d.text.Substring\\(0, [math]::Min\\(280, $d.text.Length\\)\\); \"`n=== organ donor ===\"; $o = @\\($g | Where-Object { $_.section -match 'Organ Donor' }\\)[0]; $o.text.Substring\\(0, [math]::Min\\(320, $o.text.Length\\)\\); \"`n=== zone A ===\"; $z = @\\($g | Where-Object { $_.text -match 'clubbed in Zone A' }\\)[0]; \\($z.text -split \"`n\" | Select-String 'Zone A|Delhi'\\) -join ' / ')",
+      "Bash(PYTHONPATH=src python debug_cache_evidence.py)",
+      "Bash(PYTHONPATH=src python -c ' *)"
+    ]
+  }
+}

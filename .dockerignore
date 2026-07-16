@@ -1,0 +1,14 @@
+# Never bake secrets into the image
+.env
+
+# Rebuilt inside the image by embed.py
+.chroma/
+
+# Source PDFs are parse-time input, not needed at runtime
+data/raw/
+
+# Local junk
+__pycache__/
+*.pyc
+.claude/
+*.log

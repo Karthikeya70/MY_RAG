@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "insurance-rag-ui",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["src/app.py"],
+      "port": 5000
+    }
+  ]
+}

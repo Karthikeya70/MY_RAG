@@ -1,0 +1,290 @@
+[
+  {
+    "id": "q01",
+    "type": "easy",
+    "question": "How much will the policy pay for road ambulance charges?",
+    "plan": "Silver",
+    "evidence": ["maximum of Rs 20000"],
+    "expected_keywords": [["20000", "20,000"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q02",
+    "type": "easy",
+    "question": "How many days of medical expenses before hospitalisation are covered?",
+    "plan": "Gold",
+    "evidence": ["60 days immediately before"],
+    "expected_keywords": [["60"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q03",
+    "type": "easy",
+    "question": "How many days of medical expenses after discharge from hospital are covered?",
+    "plan": "Silver",
+    "evidence": ["90 days immediately after"],
+    "expected_keywords": [["90"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q04",
+    "type": "plan-trap",
+    "question": "Is there any limit on room rent?",
+    "plan": "Gold",
+    "evidence": ["without any sublimit"],
+    "expected_keywords": [["without any sublimit", "no sublimit", "no sub-limit", "without sublimit"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q05",
+    "type": "plan-trap",
+    "question": "Is there any limit on room rent?",
+    "plan": "Silver",
+    "evidence": ["1%of Sum Insured per day"],
+    "expected_keywords": [["1%", "1 %", "1 percent"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q06",
+    "type": "waiting-period",
+    "question": "What is the waiting period for cataract surgery?",
+    "plan": "Gold",
+    "evidence": ["Cataract"],
+    "expected_keywords": [["24"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q07",
+    "type": "waiting-period",
+    "question": "What is the waiting period for pre-existing diseases?",
+    "plan": "Gold",
+    "evidence": ["36 months of continuous coverage"],
+    "expected_keywords": [["36"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q08",
+    "type": "waiting-period",
+    "question": "How long do I have to wait before maternity expenses are covered?",
+    "plan": "Gold",
+    "evidence": ["72"],
+    "expected_keywords": [["72"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q09",
+    "type": "waiting-period",
+    "question": "Is any illness covered in the first month of a brand new policy?",
+    "plan": "Gold",
+    "evidence": ["within 30 days from the first Policy commencement"],
+    "expected_keywords": [["30"], ["accident"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q10",
+    "type": "plan-trap",
+    "question": "Is bariatric surgery covered and what are the conditions?",
+    "plan": "Gold",
+    "evidence": ["waiting period of 36 months"],
+    "expected_keywords": [["36"], ["50"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q11",
+    "type": "plan-trap",
+    "question": "Is bariatric surgery covered?",
+    "plan": "Silver",
+    "evidence": ["Obesity"],
+    "expected_keywords": [["exclu", "not covered", "cannot", "no bariatric", "not mentioned", "not specified", "not contain"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q12",
+    "type": "table-lookup",
+    "question": "What is the email address of the insurance ombudsman office in Hyderabad?",
+    "plan": null,
+    "evidence": ["bimalokpal.hyderabad"],
+    "expected_keywords": [["bimalokpal.hyderabad@ecoi.co.in"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q13",
+    "type": "table-lookup",
+    "question": "Is there a dedicated phone number for senior citizens?",
+    "plan": null,
+    "evidence": ["1800-103-2529"],
+    "expected_keywords": [["1800-103-2529"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q14",
+    "type": "easy",
+    "question": "What discount do I get if I buy the policy for 2 years?",
+    "plan": "Gold",
+    "evidence": ["4 % discount"],
+    "expected_keywords": [["4 %", "4%"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q15",
+    "type": "easy",
+    "question": "How much daily cash benefit is paid when a parent stays with an insured child in hospital?",
+    "plan": "Silver",
+    "evidence": ["Daily Cash Benefit of Rs. 500 per day"],
+    "expected_keywords": [["500"], ["10"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q16",
+    "type": "not-in-doc",
+    "question": "What is the annual premium for a 30 year old man with 5 lakh sum insured?",
+    "plan": null,
+    "evidence": [],
+    "expected_keywords": [],
+    "expect_refusal": true
+  },
+  {
+    "id": "q17",
+    "type": "not-in-doc",
+    "question": "What is Bajaj Allianz's claim settlement ratio?",
+    "plan": null,
+    "evidence": [],
+    "expected_keywords": [],
+    "expect_refusal": true
+  },
+  {
+    "id": "q18",
+    "type": "grounding",
+    "question": "Does the policy cover treatment taken outside India?",
+    "plan": "Gold",
+    "evidence": ["within India only"],
+    "expected_keywords": [["India"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q19",
+    "type": "not-in-doc",
+    "question": "Which hospitals in Mumbai are part of the cashless network?",
+    "plan": null,
+    "evidence": [],
+    "expected_keywords": [],
+    "expect_refusal": true
+  },
+  {
+    "id": "q20",
+    "type": "not-in-doc",
+    "question": "Does the Gold plan cover air ambulance charges?",
+    "plan": "Gold",
+    "evidence": [],
+    "expected_keywords": [],
+    "expect_refusal": true
+  },
+  {
+    "id": "q21",
+    "type": "easy",
+    "question": "What is the grace period for paying an instalment premium?",
+    "plan": "Gold",
+    "evidence": ["Grace Period of 15 days"],
+    "expected_keywords": [["15"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q22",
+    "type": "waiting-period",
+    "question": "How long is the waiting period for joint replacement surgery?",
+    "plan": "Gold",
+    "evidence": ["Joint replacement surgery"],
+    "expected_keywords": [["36", "three", "3 consecutive"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q23",
+    "type": "grounding",
+    "question": "Is Ayurvedic treatment covered by the policy?",
+    "plan": "Gold",
+    "evidence": ["Ayurvedic / Homeopathic Hospitalisation"],
+    "expected_keywords": [["24"], ["government", "recognized", "accredited"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q24",
+    "type": "easy",
+    "question": "How much is the convalescence benefit and when is it paid?",
+    "plan": "Silver",
+    "evidence": ["Rs. 5,000 per policy year"],
+    "expected_keywords": [["5,000", "5000"], ["10"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q25",
+    "type": "easy",
+    "question": "Do I get a free health checkup with this policy?",
+    "plan": "Gold",
+    "evidence": ["1% of the sum insured max up to Rs. 5000"],
+    "expected_keywords": [["5000", "5,000"], ["3"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q26",
+    "type": "table-lookup",
+    "question": "Which cities are included in Zone A for premium payment?",
+    "plan": "Gold",
+    "evidence": ["clubbed in Zone A"],
+    "expected_keywords": [["Delhi"], ["Mumbai"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q27",
+    "type": "grounding",
+    "question": "Are organ donor expenses covered?",
+    "plan": "Gold",
+    "evidence": ["Organ Donor"],
+    "expected_keywords": [["accepted"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q28",
+    "type": "plan-trap",
+    "question": "Are cosmetic dental implants covered under dental treatment?",
+    "plan": "Gold",
+    "evidence": ["excluding any form of cosmetic surgery/implants"],
+    "expected_keywords": [["exclud", "not covered"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q29",
+    "type": "grounding",
+    "question": "Can I take treatment in Nepal and claim the expenses?",
+    "plan": "Gold",
+    "evidence": ["within India only"],
+    "expected_keywords": [["India"]],
+    "expect_refusal": false
+  },
+  {
+    "id": "q30",
+    "type": "not-in-doc",
+    "question": "What is the customer care WhatsApp number?",
+    "plan": null,
+    "evidence": [],
+    "expected_keywords": [],
+    "expect_refusal": true
+  },
+  {
+    "id": "q31",
+    "type": "not-in-doc",
+    "question": "Is there a premium discount for non-smokers?",
+    "plan": "Gold",
+    "evidence": [],
+    "expected_keywords": [],
+    "expect_refusal": true
+  },
+  {
+    "id": "q32",
+    "type": "not-in-doc",
+    "question": "Can I pay the premium using cryptocurrency?",
+    "plan": null,
+    "evidence": [],
+    "expected_keywords": [],
+    "expect_refusal": true
+  }
+]
