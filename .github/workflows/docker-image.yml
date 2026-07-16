@@ -1,0 +1,40 @@
+# Builds the Docker image and publishes it to GitHub Container Registry
+# (ghcr.io) on every push to main.
+#
+# Why ghcr instead of Azure Container Registry: ghcr is free for public
+# repos, while ACR Basic costs ~$5/month — this keeps the deployment at
+# genuinely zero cost. Azure Container Apps pulls the public image
+# directly from ghcr.
+#
+# No secrets needed: GITHUB_TOKEN is provided automatically by Actions.
+
+name: build-and-publish-image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}   # allows manual runs from the Actions tab
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/karthikeya70/my_rag:latest
