@@ -1,180 +1,286 @@
----
-title: RAG Based Insurance Chatbot
-emoji: 🛡️
-colorFrom: gray
-colorTo: yellow
-sdk: docker
-app_port: 7860
-pinned: false
----
-
 # RAG Based Insurance Chatbot
 
-**🔴 Live demo: https://my-rag.calmhill-bfae2bec.centralindia.azurecontainerapps.io/**
-(first load after idle takes ~30-60s — scale-to-zero cold start)
+**Live demo:** https://my-rag.calmhill-bfae2bec.centralindia.azurecontainerapps.io/
+(The first load after a quiet period takes 30-60 seconds. The app sleeps when nobody is using it to keep hosting free.)
 
-Ask questions about two Bajaj Allianz **Health Guard** policy documents (Gold and
-Silver plans) and get answers that are **grounded, cited, and honest** — if the
-document doesn't say it, the system says so instead of making it up.
+A chatbot that answers questions about two real insurance policy documents —
+Bajaj Allianz **Health Guard Gold** and **Health Guard Silver**. Every answer:
 
-Built **without any orchestration framework** (no LangChain / LlamaIndex): every
-stage is plain, readable Python, and every design decision below was made by
-measuring against an evaluation set — not by guessing.
+- comes **only from the policy documents** (never from the AI's general knowledge),
+- **cites the exact section and page** it came from,
+- and if the document does not contain the answer, the bot **clearly says so**
+  instead of making something up.
 
-Presented by **Karthikeya (IITGN)**.
-
----
-
-## Pipeline
-
-```
-PDF ──> parse.py ──> chunk.py ──> embed.py ──> retrieve.py ──> generate.py
-        Docling      section-      bge-small     3-way fused     OpenRouter LLM,
-        layout +     aware,        embeddings    retrieval +     strict grounding
-        tables       token-        + fact index  reranker        prompt + citations
-                     budgeted      in ChromaDB
-                                        │
-                     evaluate.py <──────┘         app.py — Flask UI (ARC Prize theme)
-                     20-question eval:            with a live scoreboard
-                     hit@k, MRR, answer
-                     accuracy, faithfulness
-```
-
-### How one question flows
-
-1. **Retrieve** — the question is embedded and three "opinions" are collected:
-   - chunk-level vector search (top 20 nearest chunks, plan-filtered first),
-   - fact-level vector search (individual sentences vote for their parent
-     chunk — "search small, read big"; top-5 facts only),
-   - a cross-encoder **reranker** that reads question + chunk together.
-   The opinions are combined with **Reciprocal Rank Fusion**; top 5 chunks win.
-2. **Semantic cache check** — if a meaning-equivalent question was answered
-   before (question distance ≤ 0.18 **and** same top-1 retrieved chunk), the
-   stored answer is reused with **no LLM call** (~2s instead of 10–15s).
-   Both conditions are measured, not guessed: "expenses *before*
-   hospitalisation" vs "*after* discharge" embed at distance 0.106 — closer
-   than many true paraphrases — but retrieve different evidence, which is
-   what keeps their answers apart. The cache is partitioned by plan.
-3. **Generate** — the chunks are pasted into a prompt with strict rules:
-   *answer ONLY from these extracts, cite plan/section/page, say so if the
-   answer isn't there*. Temperature 0. The answer is stored in the cache.
-4. **Audit** (in evaluation) — a second LLM call checks every claim in the
-   answer against the extracts and flags anything unsupported (faithfulness).
-   Evaluation always bypasses the cache: it must measure the live system.
+Built for learning purposes, **without LangChain or LlamaIndex**. Every step is
+plain Python you can read and understand. Every design decision in this project
+was made by **measuring accuracy on a test set** — not by guessing.
 
 ---
 
-## Results (32-question eval, data/eval/questions.json)
+## What is RAG?
 
-| Metric | Score |
-|---|---|
-| Retrieval hit@5 | **96%** (24/25 answerable questions) |
-| Retrieval hit@1 / MRR | 72% / 0.813 |
-| Answer accuracy | **96%** (31/32, includes correct refusals on 7 bait questions) |
-| Faithfulness (LLM-as-judge) | **93%** (30/32 — both flags manually audited as judge false positives) |
+RAG stands for **Retrieval-Augmented Generation**. The idea is simple:
 
-*Baseline measured end-to-end on google/gemini-2.5-flash-lite (generation and
-judging). The one real answer failure is the Nepal reasoning-gap query
-(below). The two faithfulness flags were audited by hand: one marks a refusal
-as a hallucination (contradicting the judge's own rules), the other marks a
-statement directly supported by the extract — judge noise, reported rather
-than hidden. Earlier runs on free models (nemotron) scored 32/32 answers and
-32/32 faithfulness on the same questions.*
+Large language models (LLMs) are great writers but they answer from memory,
+and their memory contains the whole internet — including *other* insurance
+companies' policies. Ask a plain LLM "does my policy cover air ambulance?"
+and it may confidently describe some other company's rules.
 
-*The eval was deliberately grown from 17 → 20 → 32 questions when it started
-saturating at 100% — a test you always pass has stopped teaching you anything.
-The growth immediately paid off: it exposed a new failure class (below).*
+RAG fixes this in two steps:
 
-The eval mixes easy lookups, Gold-vs-Silver trap questions (the two plans differ
-in sneaky ways), waiting-period legalese, table lookups, and **hallucination
-bait** — questions that sound answerable but aren't in the document (air
-ambulance, network hospital lists, premiums), where the only correct answer is
-"the document doesn't say."
+1. **Retrieve** — first find the exact paragraphs of *your* document that
+   relate to the question.
+2. **Generate** — then ask the LLM to write an answer *using only those
+   paragraphs*, with citations.
 
-### Retrieval improvements, step by step
-
-| Configuration | hit@5 |
-|---|---|
-| Naive vector search | 80% |
-| + section headings repeated on split chunks | 80% (fixed q06, others unchanged) |
-| + cross-encoder reranker (rank order used directly) | 86% |
-| + Reciprocal Rank Fusion (vector ⊕ reranker) | 93% |
-| + fact-level index, all 30 facts voting | 86% ← *regression, caught by eval* |
-| + fact-level index, **top-5 facts voting** | **100%** |
-
-### Decisions the numbers made
-
-- **Reranker size:** benchmarked `BAAI/bge-reranker-base` (1.1 GB) against
-  `ms-marco-MiniLM-L-6-v2` (80 MB): identical 93% at the time, same failure
-  cases. **Kept the small one** — same score, ~8× less compute.
-- **Fusion over trust:** letting the reranker overrule the vector search
-  broke as many questions as it fixed; fusing the rankings kept both strengths.
-- **Fact index scope:** indexing table rows as facts flooded the ranking with
-  near-duplicates (30 "Email: …" rows) and *dropped* the score to 86%.
-  Prose-only facts with capped voting reached 100%.
-- **Honesty in grading:** an early "100% answers" score turned out to be a
-  grading loophole (the model's "no limit is stated" accidentally matched the
-  expected "no sublimit"). The grader was tightened; the honest score was 94%.
-  The reverse also happened twice: correct refusals ("no mention of air
-  ambulance") were graded FAIL because the phrase list was too literal.
-  And once the *eval itself* was wrong: q22 expected joint replacement in the
-  24-month waiting list, but the policy gives it a separate 36-month rule —
-  the model read the document more carefully than the eval author.
-  Lesson: when a test fails, audit the test before the system.
-
-### Known limitations
-
-- **Reasoning-gap queries** (the one retrieval miss): *"Can I take treatment
-  in Nepal?"* fails because "Nepal" appears nowhere in the document — linking
-  Nepal → outside India → the Territorial Limits section requires world
-  knowledge no embedding has. The standard cure is LLM query-rewriting
-  (rewrite the question into policy language before searching); identified,
-  not yet implemented.
-
-- Docling dropped 3 ombudsman office emails at PDF-extraction time (they never
-  reached the index; verified against the raw parse output).
-- The Silver PDF contains no UIN; the field is `null` rather than guessed.
-- The Silver PDF's page-1 footer is missing, so its page-1 chunks cite page 2.
-- The cross-encoder scores "…without any sublimit" as irrelevant to "is there
-  a limit?" (negation blindness) — the fact index compensates.
+The LLM becomes a careful reader of the document instead of a know-it-all.
 
 ---
 
-## Running it
+## How the whole system works
 
-```bash
-pip install -r requirements.txt          # docling, sentence-transformers, chromadb
-# put an OpenRouter key in .env:  OPENROUTER_API_KEY=...
-
-python src/parse.py gold                 # PDF -> markdown (repeat: silver)
-python src/chunk.py gold                 # markdown -> chunks JSON (repeat: silver)
-python src/embed.py                      # chunks + facts -> ChromaDB
-python src/retrieve.py "your question" gold      # test retrieval alone
-python src/generate.py "your question" gold      # full RAG answer
-python src/app.py                        # web UI at http://localhost:5000
+```
+ PDF files
+    |
+    v
+ 1. PARSE        (parse.py)    Read the PDF and convert it to clean text.
+    |
+    v
+ 2. CHUNK        (chunk.py)    Cut the text into ~250 small pieces ("chunks"),
+    |                          one topic per piece, following the document's
+    |                          own section headings.
+    v
+ 3. EMBED        (embed.py)    Convert every chunk into a vector — a list of
+    |                          384 numbers that captures its MEANING. Similar
+    |                          meanings get similar numbers. Store everything
+    |                          in a small local database (ChromaDB).
+    v
+ 4. RETRIEVE     (retrieve.py) When a question comes in, find the 5 chunks
+    |                          whose meaning is closest to the question.
+    v
+ 5. GENERATE     (generate.py) Give those 5 chunks to an LLM with strict
+    |                          rules: answer only from these, cite everything,
+    |                          say "not in the document" if it isn't there.
+    v
+ 6. EVALUATE     (evaluate.py) A 32-question exam with known answers that
+                               scores every part of the system.
 ```
 
-### Evaluation
+The web app (`app.py` + one HTML page) puts a face on this pipeline.
 
-```bash
-python src/evaluate.py                   # retrieval metrics only (free, fast)
-python src/evaluate.py --full            # + LLM answers, graded
-python src/evaluate.py --full --judge    # + faithfulness audit (LLM-as-judge)
-python src/evaluate.py --no-facts        # ablation: without the fact index
-python src/evaluate.py --no-rerank       # ablation: pure vector search
-```
+---
 
-The web UI's scoreboard reads `data/eval/results.json` live — run an eval,
-refresh the page, the numbers update.
+## How one question flows through the system
 
-## Stack
+Say a user asks: *"How much will the policy pay for a road ambulance?"*
 
-| Component | Choice | Why |
+1. The question is converted into a vector (its "meaning coordinates").
+2. **Three searches run and vote together:**
+   - **Chunk search** — find the 20 chunks nearest in meaning.
+   - **Sentence search** — every individual sentence of the document was
+     also indexed separately. If one sentence matches the question sharply,
+     the chunk it belongs to gets a vote. This finds facts that are buried
+     in the middle of long chunks.
+   - **Reranker** — a second, smaller AI model reads the question TOGETHER
+     with each candidate chunk and scores how well that chunk actually
+     answers it. (The first search reads them separately, which is faster
+     but less accurate.)
+   The three rankings are combined with a simple points system
+   (Reciprocal Rank Fusion). The best 5 chunks win.
+3. **Cache check** — if a very similar question was answered before AND it
+   retrieved the same evidence, the saved answer is returned instantly
+   (2 seconds instead of 10, and no LLM cost).
+4. Otherwise, the 5 chunks + the question + the strict rules go to the LLM
+   (Google Gemini 2.5 Flash Lite, via OpenRouter).
+5. The answer comes back with citations like
+   `[Silver, section "4. Road Ambulance", page 2]` and is saved to the cache.
+
+If the user selected a plan (Gold or Silver), the search is **filtered before
+it runs** — so a Silver question can never accidentally pull a Gold rule.
+This matters because the two plans differ in tricky ways (example: Gold has
+no room-rent limit, Silver caps it at 1% of sum insured per day).
+
+---
+
+## Results
+
+Measured on a 32-question test set (`data/eval/questions.json`). Every
+expected answer was verified against the actual document before being added.
+
+| What we measure | Score | Meaning |
 |---|---|---|
-| PDF parsing | Docling | layout-aware, real table extraction |
-| Chunking | custom Python | section-aware, token-budgeted, keeps table records whole, data-integrity checked |
-| Embeddings | BAAI/bge-small-en-v1.5 (local) | free, 512-token window, data stays on-machine |
-| Vector store | ChromaDB (embedded) | zero ops at this scale; swap for pgvector/Qdrant when the corpus grows |
-| Reranker | ms-marco-MiniLM-L-6-v2 | benchmarked equal to a 14× larger model here |
-| LLM | gemini-2.5-flash-lite via OpenRouter (free models as fallback) | ~$0.0003/question, no rate-limit stalls; swap models by editing one list |
-| UI | Flask + hand-written HTML | full control; themed after arcprize.org |
+| Retrieval hit@5 | **96%** | The correct chunk was in the top 5 results |
+| Retrieval hit@1 | 72% | The correct chunk was the #1 result |
+| MRR | 0.813 | On average the correct chunk ranks close to #1 |
+| Answer accuracy | **96%** | The final answer contained the right facts (includes 7 trick questions where refusing to answer is the correct behavior) |
+| Faithfulness | **93%** | A second AI audited every answer and found no made-up facts (the 2 flags were checked by hand — both were mistakes by the auditor, not the bot) |
+
+### How retrieval improved, step by step
+
+Each row is a change we tried. The score decided whether it stayed.
+
+| Change | hit@5 | Kept? |
+|---|---|---|
+| Basic vector search only | 80% | starting point |
+| + repeat section headings on split chunks | 80% | yes (fixed one question) |
+| + reranker deciding the order alone | 86% | no — fixed 2 questions, broke 2 others |
+| + combine rankings with points (fusion) | 93% | yes |
+| + sentence-level index, everything votes | 86% | no — table rows flooded the results |
+| + sentence-level index, top-5 votes only | **96%** | yes (final) |
+
+### Decisions the measurements made for us
+
+- **Small reranker kept over a 14x bigger one** — we benchmarked both.
+  Identical score. The big download was not wasted: now we *know*.
+- **A bigger LLM was tried and rejected** — GPT-4o-mini wrote nicer answers
+  but added details from its training memory (it invented a payment limit
+  that is not in the document). Our faithfulness metric caught it.
+- **The test set itself was wrong once** — it expected "24 months" for joint
+  replacement surgery, but the policy actually says 36. The bot read the
+  document more carefully than the person who wrote the test.
+  Lesson: when a test fails, check the test before blaming the system.
+
+---
+
+## The parts in a little more detail
+
+### 1. Parsing (`parse.py`)
+Uses **Docling** (an open-source PDF understanding library) to convert the
+PDFs into markdown with proper headings and tables. A PDF is basically a
+photo of a page — this step turns it back into structured text.
+
+### 2. Chunking (`chunk.py`)
+Cuts the text at the document's own section headings, so each chunk covers
+one topic. Extra care for tables: a multi-row entry (like one complaint
+office's name + address + phone + email) is never split across two chunks,
+and the table's header row is copied into every piece. Chunk size is
+measured in **tokens using the embedding model's own tokenizer** — because
+that model silently ignores everything past 512 tokens, and word counts
+underestimate badly for tables. A built-in integrity check confirms that
+no line of the document was lost during chunking.
+
+### 3. Embedding and storage (`embed.py`)
+Model: `BAAI/bge-small-en-v1.5` (small, free, runs on CPU).
+Storage: **ChromaDB** in embedded mode — it is just a folder of files, like
+SQLite. No server, no account. Three collections (think: tables) live in it:
+
+| Collection | Contents | Used for |
+|---|---|---|
+| `insurance_chunks` | 254 chunks + plan/section/page metadata | main search + what the LLM reads |
+| `insurance_facts` | 1,092 individual sentences, each pointing to its parent chunk | precise "buried fact" search |
+| `answer_cache` | past questions + their answers | skipping the LLM for repeat questions |
+
+### 4. Retrieval (`retrieve.py`)
+The three-vote system described above. Ablation flags (`--no-rerank`,
+`--no-facts`, `--no-fuse` in the eval) let you turn each part off and
+measure what it contributes.
+
+### 5. Generation (`generate.py`)
+A plain HTTPS call to OpenRouter (no SDK). The system prompt contains the
+five rules that make the bot honest. Temperature is 0, so the same question
+always gets the same answer — for insurance facts, consistency is a feature.
+A fallback list of models is tried in order if the first one is down.
+
+### 6. The semantic cache (`generate.py`)
+Saves every answered question with its meaning-vector. A new question reuses
+a saved answer only if **three checks all pass**: the questions are close in
+meaning (distance ≤ 0.18), they retrieve the same #1 chunk, and they are for
+the same plan. The thresholds came from measurement: "expenses BEFORE
+hospitalisation" and "expenses AFTER discharge" sound nearly identical
+(distance 0.106!) but have different answers — the evidence check is what
+keeps them apart.
+
+### 7. Evaluation (`evaluate.py`)
+Two separate scores: did retrieval find the right chunk (free to run, no
+LLM needed), and was the final answer correct. Plus a **faithfulness audit**:
+a second LLM call checks every sentence of every answer against the source
+chunks and flags anything that was made up. Run it yourself:
+
+```bash
+python src/evaluate.py                   # retrieval scores only (fast, free)
+python src/evaluate.py --full            # + generate and grade real answers
+python src/evaluate.py --full --judge    # + faithfulness audit
+python src/evaluate.py --no-facts       # example ablation: no sentence index
+```
+
+The web app's scoreboard reads the latest results file automatically —
+run the eval, refresh the page, the numbers update.
+
+---
+
+## Running it locally
+
+```bash
+pip install -r requirements.txt
+# create a .env file containing:  OPENROUTER_API_KEY=your_key_here
+
+python src/parse.py gold        # PDF -> markdown   (also: silver)
+python src/chunk.py gold        # markdown -> chunks (also: silver)
+python src/embed.py             # chunks -> vector database
+python src/app.py               # web app at http://localhost:5000
+```
+
+You can also test individual stages from the command line:
+
+```bash
+python src/retrieve.py "Is there any limit on room rent?" gold
+python src/generate.py "How much for a road ambulance?" silver
+```
+
+---
+
+## How it is deployed (all free)
+
+```
+push to GitHub main branch
+        |
+        v
+GitHub Actions builds the Docker image        (free for public repos)
+        |
+        v
+image published to GitHub Container Registry  (ghcr.io, free)
+        |
+        v
+Azure Container Apps runs it                   (Azure for Students, no card)
+```
+
+The Docker image bakes in the two ML models and rebuilds the vector database
+at build time, so the running app never downloads anything at startup. The
+app scales to zero when idle (that is why the first visit is slow) and the
+only secret it needs is the OpenRouter API key, set as an environment
+variable in Azure — never committed to git.
+
+---
+
+## Tech stack
+
+| Part | Choice | Why |
+|---|---|---|
+| PDF parsing | Docling | understands layout and tables |
+| Chunking | own Python code | full control over tables and sizes |
+| Embeddings | bge-small-en-v1.5 | free, local, 512-token window |
+| Vector DB | ChromaDB (embedded) | zero setup; swap for pgvector/Qdrant at scale |
+| Reranker | ms-marco-MiniLM-L-6-v2 | benchmarked equal to a 14x bigger model |
+| LLM | Gemini 2.5 Flash Lite via OpenRouter | ~$0.0003 per question, reliable |
+| Web app | Flask + one hand-written HTML page | no build tools, full control |
+| Hosting | Azure Container Apps + GitHub Actions + ghcr | genuinely $0/month |
+
+## Known limitations (documented, not hidden)
+
+- **"Nepal" type questions fail.** The document never says "Nepal", so a
+  question about treatment in Nepal cannot find the "India only" rule by
+  meaning alone — that connection needs world knowledge. The standard fix
+  (rewriting the query with an LLM before searching) was prototyped and is
+  described as future work.
+- The PDF parser dropped 3 email addresses from a messy table. Whatever
+  parsing loses, no later stage can recover.
+- The rerankers cannot understand negation ("no sublimit" as the answer to
+  "is there a limit?"). The sentence-level index compensates.
+- The Silver PDF has no product code (UIN) printed in it, so that field is
+  empty rather than guessed.
+
+---
+
+Built by **Karthikeya (IITGN)** as an end-to-end learning project:
+parse -> chunk -> embed -> retrieve -> generate -> evaluate -> deploy,
+with every step measured and every failure documented.
