@@ -10,6 +10,9 @@ pinned: false
 
 # RAG Based Insurance Chatbot
 
+**🔴 Live demo: https://my-rag.calmhill-bfae2bec.centralindia.azurecontainerapps.io/**
+(first load after idle takes ~30-60s — scale-to-zero cold start)
+
 Ask questions about two Bajaj Allianz **Health Guard** policy documents (Gold and
 Silver plans) and get answers that are **grounded, cited, and honest** — if the
 document doesn't say it, the system says so instead of making it up.
